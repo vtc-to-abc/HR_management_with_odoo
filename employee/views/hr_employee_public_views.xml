@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="custom_employee_form_view" model="ir.ui.view">
+            <field name="name">custom.employee.form.view</field>
+            <field name="model">hr.employee</field>
+            <field name="inherit_id" ref="hr.view_employee_form"/>
+            <field name="arch" type="xml">
+                <!--form's pages positions:-->
+                <!--0. base -->
+                <xpath expr="//div[@name='button_box']" position="inside">
+                    <button name="toggle_active" type="object" string="Active" class="oe_stat_button" icon="fa-archive">
+                        <field name="active" widget="boolean_button"/>
+                    </button>
+                </xpath>
+                <xpath expr="//group" position="replace">
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="job_title1"/>
+                            <field name="department_id"/>
+                            <field name="parent_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="join_date"/>
+                            <field name="contract_id" readonly="True"/>
+                            <field name="work_time"/>
+                            <field name="allocation_count"/>
+                            <field name="allocation_used_count"/>
+                        </group>
+                    </group>
+                </xpath>
+
+                <!--1. work infomation-->
+                <xpath expr="//notebook/page[@name='public']" position="attributes">
+                    <attribute name="string">Thông tin công việc</attribute>
+                </xpath>
+                <xpath expr="//notebook/page[@name='public']/div/div/group[1]" position="replace">
+                    <group>
+                        <field name="office"/>
+                        <field name="job_position_lv"/>
+                        <field name="salary_rate"/>
+                        <field name="work_status"/>
+                        <field name="off_date"/>
+                        <field name="off_main_reason"/>
+                        <field name="off_detail_reason"/>
+                    </group>
+                </xpath>
+
+                <xpath expr="//notebook/page[@name='public']/div/div/group[2]" position="attributes">
+                    <attribute name="class">hidden</attribute>
+                    <attribute name="invisible">1</attribute>
+                </xpath>
+
+                <xpath expr="//notebook/page[@name='public']/div/div/group[4]" position="attributes">
+                    <attribute name="invisible">1</attribute>
+                </xpath>
+
+                <!--2. contact infomation-->
+                <xpath expr="//notebook/page[@name='public']" position="after">
+                    <page name="contact" string="Thông tin liên hệ">
+                        <group>
+                            <field name="phone"/>
+                            <field name="private_email"/>
+                            <field name="skype_id"/>
+                            <field name="facebook_link"/>
+                            <field name="emergency_phone"/>
+                            <field name="relative_name"/>
+                        </group>
+                    </page>
+                </xpath>
+
+
+                <!--3. private infomation-->
+                <xpath expr="//notebook/page[@name='personal_information']" position="attributes">
+                    <attribute name="string">Thông tin cá nhân</attribute>
+                </xpath>
+                <xpath expr="//notebook/page[@name='personal_information']/group
+                " position="attributes">
+                    <attribute name="invisible">1</attribute>
+                </xpath>
+
+                <xpath expr="//notebook/page[@name='personal_information']/group" position="after">
+                    <group>
+                        <group>
+                            <field name="identification_id"/>
+                            <field name="identification_issued_date"/>
+                            <field name="identification_issued_place"/>
+                            <field name="identification_old"/>
+                            <field name="tax_code"/>
+                            <field name="bank_name"/>
+                            <field name="bank_account"/>
+                            <field name="bank_branch"/>
+                        </group>
+                        <group>
+                            <field name="gender"/>
+                            <field name="birthday"/>
+                            <field name="country_of_birth"/>
+                            <field name="place_of_birth"/>
+                            <field name="resident_address"/>
+                            <field name="staying_address"/>
+                            <field name="marital"/>
+                        </group>
+                    </group>
+                </xpath>
+
+                <!--4. resume-->
+                <xpath expr="//notebook/page[@name='personal_information']" position="after">
+                    <page name="resume" string="Resumé">
+                    </page>
+                </xpath>
+
+                <!--5. provided infomation-->
+                <xpath expr="//notebook/page[@name='resume']" position="after">
+                    <page name="provided" string="Cấp Phát">
+                        <group>
+                            <field name="gsuite_provided"/>
+                            <field name="gsuite_account"/>
+                            <field name="gsuite_pwd"/>
+                            <field name="device_provided"/>
+                            <field name="device"/>
+                            <field name="parking_ticket_provided"/>
+                            <field name="VIN"/>
+                            <field name="vehicle_type"/>
+                        </group>
+                    </page>
+                </xpath>
+
+
+                <!--6. contract-->
+                <xpath expr="//notebook/page[@name='provided']" position="after">
+                    <page name="contract" string="Hợp Đồng">
+                        <field name="contract_ids"/>
+                    </page>
+                </xpath>
+
+                <!--7. profile-->
+                <xpath expr="//notebook/page[@name='contract']" position="after">
+                    <page name="profile" string="Hồ Sơ">
+                        <group>
+                            <field name="profile_status"/>
+                            <field name="profile_handed"/>
+                            <field name="expire_date"/>
+                            <field name="day_til_expire"/>
+                        </group>
+                    </page>
+                </xpath>
+
+                <!--8. hr settings-->
+                <xpath expr="//notebook/page[@name='hr_settings']" position="attributes">
+                    <attribute name="string">Thiết lập</attribute>
+                </xpath>
+                <xpath expr="//notebook/page[@name='hr_settings']/group" position="attributes">
+                    <attribute name="invisible">1</attribute>
+                </xpath>
+                <xpath expr="//notebook/page[@name='hr_settings']/group" position="after">
+                    <group>
+                        <field name="user_id"/>
+                        <field name="pin"/>
+                        <field name="leave_manager_id"/>
+                    </group>
+                </xpath>
+            </field>
+        </record>
+        <record id="view_custom+employee_filter" model="ir.ui.view">
+            <field name="name">view.custom.employee.filter</field>
+            <field name="model">hr.employee</field>
+            <field name="inherit_id" ref="hr.view_employee_filter"/>
+            <field name="arch" type="xml">
+                <xpath expr="//search/group" position="inside">
+                    <filter name="group_office" string="Work Place" domain="[]" context="{'group_by':'work_location'}"/>
+                </xpath>
+            </field>
+        </record>
+        <record id="hr.open_view_employee_list_my" model="ir.actions.act_window">
+            <field name="name">Custom employee</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">hr.employee</field>
+            <field name="view_mode">tree,kanban,form</field>
+
+        </record>
+    </data>
+</odoo>
