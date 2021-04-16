@@ -7,10 +7,6 @@ from time import sleep
 from dateutil.relativedelta import relativedelta, MO
 from datetime import datetime, timedelta
 from calendar import monthrange
-class TestFuction(models.Model):
-    _inherit = 'hr.employee'
-    pass
-
 
 class ExtendEmployee(models.Model):
     _inherit = ["hr.employee"]
@@ -40,30 +36,6 @@ class ExtendEmployee(models.Model):
     work_time = fields.Char(string="Thâm Niên", readonly=True, compute="_work_time_increase")
     parent_id = fields.Many2one('hr.employee', 'Người Quản Lý', compute="_compute_parent_id", store=False, readonly=False,
                                 domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]")
-
-    @api.depends('contract_ids')
-    def auto_current_contract(self):
-        c_d =[]
-        cur_id = 0
-        for contract in self.contract_ids:
-            c_d.append(contract.date_start)
-        for rec in self:
-            cur_id = rec.contract_ids.filtered(lambda x: x.employee_id == self.id).sorted(key=lambda r: r.date_start)
-        self.contract_id = cur_id
-        print(self.contract_id)
-
-    @api.constrains('join_date')
-    def _check_join(self):
-        if self.join_date > datetime.now():
-            raise ValidationError('Join date before now')
-
-    @api.depends('join_date')
-    def _work_time_increase(self):
-        w_y = str(relativedelta(datetime.now(), self.join_date).years)
-        w_m = str(relativedelta(datetime.now(), self.join_date).months)
-        w_d = str(relativedelta(datetime.now(), self.join_date).days)
-
-        self.work_time = ("%s năm %s tháng %s ngày" % (w_y, w_m, w_d))
 
     # work info
     job_position_lv = fields.Selection(string="Cấp Bậc",
@@ -141,8 +113,6 @@ class ExtendEmployee(models.Model):
         tracking=True,
         help='Employee bank salary account')
     # resume
-
-
     # provide
     gsuite_provided = fields.Selection(string="Cấp G-suite",
                                     selection=[
@@ -176,7 +146,6 @@ class ExtendEmployee(models.Model):
 
     # contract
 
-
     # profile
     profile_status = fields.Selection(string="TT Hồ sơ",
                                     selection=[
@@ -196,6 +165,31 @@ class ExtendEmployee(models.Model):
         help='Select the user responsible for approving "Time Off" of this employee.\n'
              'If empty, the approval is done by an Administrator or Approver (determined in settings/users).')
     other_certificate = fields.Char(string="Other Certificate", required=False)
+
+    @api.depends('contract_ids')
+    def auto_current_contract(self):
+        c_d =[]
+        cur_id = 0
+        for contract in self.contract_ids:
+            c_d.append(contract.date_start)
+        for rec in self:
+            cur_id = rec.contract_ids.filtered(lambda x: x.employee_id == self.id).sorted(key=lambda r: r.date_start)
+        self.contract_id = cur_id
+        print(self.contract_id)
+
+    @api.constrains('join_date')
+    def _check_join(self):
+        if self.join_date > datetime.now():
+            raise ValidationError('Join date before now')
+
+    @api.depends('join_date')
+    def _work_time_increase(self):
+        w_y = str(relativedelta(datetime.now(), self.join_date).years)
+        w_m = str(relativedelta(datetime.now(), self.join_date).months)
+        w_d = str(relativedelta(datetime.now(), self.join_date).days)
+
+        self.work_time = ("%s năm %s tháng %s ngày" % (w_y, w_m, w_d))
+
     @api.constrains('name')
     def _check_name(self):
 

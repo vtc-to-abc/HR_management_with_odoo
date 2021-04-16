@@ -4,6 +4,7 @@ import datetime
 from datetime import datetime, timedelta
 from calendar import monthrange
 from dateutil.relativedelta import relativedelta, MO
+from odoo.tools import float_compare
 
 class ExtendContract(models.Model):
     _inherit = "hr.leave"
@@ -14,30 +15,27 @@ class ExtendContract(models.Model):
     date_to = fields.Datetime(string='Ngay het')
     number_of_days = fields.Float(string='So ngay xin')
 
-
-    @api.depends('date_from', 'date_to', 'employee_id')
-    def _compute_number_of_days(self):
-        for holiday in self:
-            if holiday.date_from and holiday.date_to:
-                holiday.number_of_days = \
-                holiday._get_number_of_days(holiday.date_from, holiday.date_to, holiday.employee_id.id)['days']
-            else:
-                holiday.number_of_days = 0
-
     @api.constrains('state', 'number_of_days', 'holiday_status_id')
     def _check_holidays(self):
+        mapped_days = self.mapped('holiday_status_id').get_employees_days(self.mapped('employee_id').ids)
 
-        allocated_count = self.employee_id.allocation_count
+        # p_time_off = so ngay nhan vien duoc ung phep theo loai hop dong
+        p_time_off = float(str(self.employee_id.contract_id.contract_type[0]))
+        for holiday in self:
+            if holiday.holiday_type != 'employee' or not holiday.employee_id or holiday.holiday_status_id.allocation_type == 'no':
+                continue
+            leave_days = mapped_days[holiday.employee_id.id][holiday.holiday_status_id.id]
 
-        allocated_used = self.employee_id.allocation_used_count
-        #print(allocated_left)
-        e_cur_contract = self.employee_id.contract_id.contract_type[0]
-        p_time_off = int(str(self.employee_id.contract_id.contract_type[0]))
-        #self.env['hr.contract'].search([('id', '=', '%s' % e_cur_contract)], limit=1).contract_type)[0])
-
-        print( p_time_off)
-        if p_time_off > 0:
-            if self.number_of_days - (allocated_count - allocated_used) > p_time_off:
-                raise ValidationError('ko duoc nghi qua ung phep')
-        else:
-            raise ValidationError('ko co hop dong')
+            # neu nhan vien co hop dong thi moi duoc phep xin nghi loai co allocation
+            if p_time_off :
+                """ xet so allocation con lai cua nhan vien. 
+                        + Neu so allocation con lai >= 0 thi moi duoc phep xin nghi
+                        + Neu so allocation con lai < 0 thi ko duoc phep xin nghi
+                """
+                if float_compare(leave_days['remanining_leaves'], 0, precision_digits=2) != -1:
+                    if float_compare(leave_days['remaining_leaves'] + p_time_off, 0, precision_digits=2) == -1 or float_compare(leave_days['virtual_remaining_leaves'] + p_time_off, 0, precision_digits=2) == -1:
+                        raise ValidationError(_('Khong duoc nghi qua so ngay cho phep'))
+                else:
+                    raise ValidationError(_("hien dang no phep, hay tra phep"))
+            else:
+                raise ValidationError(_('Chi nhan vien co hop dong moi duoc nghi cap phep'))

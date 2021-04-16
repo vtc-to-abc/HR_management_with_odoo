@@ -12,6 +12,7 @@
     'data': [
         'security/ir.model.access.csv',
         'views/hr_leave_allocation_views.xml',
+        'views/hr_leave_views.xml',
     ],
     'installable': True,
     'application': True,
