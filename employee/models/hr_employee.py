@@ -20,7 +20,7 @@ class ExtendEmployee(models.Model):
     contract_id = fields.Many2one('hr.contract', string='Hợp Đồng Hiện Tại',
                                   groups="hr.group_hr_user", domain="[('company_id', '=', company_id)]",
                                   _rec_name='contract_type', store=True
-                                  , help='Current contract of the employee', compute="auto_current_contract")
+                                  , help='Current contract of the employee',)
 
     job_title1 = fields.Selection(string='Vị trí làm việc',
                                  selection=[
@@ -166,17 +166,16 @@ class ExtendEmployee(models.Model):
              'If empty, the approval is done by an Administrator or Approver (determined in settings/users).')
     other_certificate = fields.Char(string="Other Certificate", required=False)
 
-    @api.depends('contract_ids')
+    """@api.depends('contract_ids')
     def auto_current_contract(self):
-        c_d =[]
-        cur_id = 0
-        for contract in self.contract_ids:
-            c_d.append(contract.date_start)
-        for rec in self:
-            cur_id = rec.contract_ids.filtered(lambda x: x.employee_id == self.id).sorted(key=lambda r: r.date_start)
-        self.contract_id = cur_id
-        print(self.contract_id)
+        if self.contract_ids:
+            self.contract_ids.filtered(lambda x: x.employee_id == self ).sorted(key=lambda r: r.date_start, reverse = True)[0].state = 'open'
+            #self.contract_id = cur_id
 
+        if self.contract_id.date_end:
+            if self.contract_id.date_end < date.today():
+                self.contract_id = None
+    """
     @api.constrains('join_date')
     def _check_join(self):
         if self.join_date > datetime.now():

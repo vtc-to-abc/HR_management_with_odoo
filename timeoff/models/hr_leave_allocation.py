@@ -35,8 +35,9 @@ class CusHolidaysType(models.Model):
                 employees = self.department_id.member_ids
                 print(employees)
             elif self.holiday_type == 'contract':
-                employees = self.env['hr.employee'].search([('contract_id.contract_type', '=', '3ct')])
-                print(employees)
+                employees = self.env['hr.employee'].search([('contract_id.contract_type', '=', self.contract_type)])
+                for e in employees:
+                    print(e.name)
             else:
                 employees = self.env['hr.employee'].search([('company_id', '=', self.mode_company_id.id)])
 
