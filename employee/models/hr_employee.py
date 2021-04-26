@@ -11,7 +11,7 @@ class ExtendEmployee(models.Model):
     # base
     code = fields.Char(string="Mã Nhân Viên", required=False)
     department_id = fields.Many2one('hr.department', string="Bộ Phận", required=False)
-    join_date = fields.Datetime(string="Ngày Tham gia", required=False)
+    join_date = fields.Date(string="Ngày Tham gia", required=False)
     contract_ids = fields.One2many('hr.contract', 'employee_id', string='Danh sach hop dong cua empl')
     contract_id = fields.Many2one('hr.contract', string='Hợp Đồng Hiện Tại',
                                   groups="hr.group_hr_user", domain="[('company_id', '=', company_id)]",
@@ -173,10 +173,6 @@ class ExtendEmployee(models.Model):
             if self.contract_id.date_end < date.today():
                 self.contract_id = None
     """
-    @api.constrains('join_date')
-    def _check_join(self):
-        if self.join_date > datetime.now():
-            raise ValidationError('Join date before now')
 
     @api.depends('join_date')
     def _work_time_increase(self):

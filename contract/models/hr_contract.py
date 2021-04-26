@@ -59,25 +59,29 @@ class ExtendContract(models.Model):
 
     @api.model
     def update_state(self):
-        # near_expire_contracts = self.search([
-        #         ('state', '=', 'open'), ('kanban_state', 'in', ['blocked', 'done', 'normal']),
-        #         '|',
-        #         '&',
-        #         ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
-        #         ('date_end', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
-        #         '&',
-        #         ('visa_expire', '<=', fields.Date.to_string(date.today() + relativedelta(days=60))),
-        #         ('visa_expire', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
-        #     ])
+        # khi hop dong hien tai gan het han, thi gui mail ve
+        near_expire_contracts = self.search([
+                ('state', '=', 'open'), ('kanban_state', 'in', ['blocked', 'done', 'normal']),
+                '|',
+                '&',
+                ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=7))),
+                ('date_end', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+                '&',
+                ('visa_expire', '<=', fields.Date.to_string(date.today() + relativedelta(days=60))),
+                ('visa_expire', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+            ])
 
-        # for contract in near_expire_contracts:
-        #     contract.activity_schedule(
-        #         'mail.mail_activity_data_todo', contract.date_end,
-        #         _("The contract of %s is about to expire.", contract.employee_id.name),
-        #         user_id=contract.hr_responsible_id.id or self.env.uid)
+        for contract in near_expire_contracts:
+            contract.activity_schedule(
+                'mail.mail_activity_data_todo', contract.date_end,
+                _("The contract of %s is about to expire.", contract.employee_id.name),
+                user_id=contract.hr_responsible_id.id or self.env.uid)
 
-        # near_expire_contracts.write({'kanban_state': 'blocked'})
+        near_expire_contracts.write({'kanban_state': 'blocked'})
 
+        # thay doi hop dong.
+        #   th1: neu hop dong hien tai sap het han thi tu dong ket thuc. Sau do tu dong cap nhat hop dong hien tai moi
+        #        dua tren cac ban draft co san cua nhan vien
         self.search([
             ('state', 'in', ['open']),
             '|',
@@ -103,15 +107,27 @@ class ExtendContract(models.Model):
             else:
                 continue
 
-        closest_new_contracts = self.search([('state', 'in', ['draft'])], order="date_start desc")
-        print(closest_new_contracts)
-        for contract in closest_new_contracts:
-             existed_current_contract = self.search([
+        # tu dong cap nhat hop dong hien tai cho nhan vien chua co hop dong hien tai hoac moi vao lam
+        employee_drafts = self.search([('state', 'in', ['draft'])], order="date_start desc")
+        for contract in employee_drafts:
+            validate_existed_current_contracts = self.search([
                      ('employee_id', '=', contract.employee_id.id),
                      ('state', 'in', (['open'])),
                      ])
-             if not existed_current_contract:
-                 contract.write({'state': 'open'})
+            check_new_employee_contracts = self.search([
+                    ('employee_id', '=', contract.employee_id.id),
+                    ('state', 'not in', (['draft', 'open'])),
+            ])
+            check_new_employee_first_drafts = self.search([
+                ('id', '=', contract.id),
+                ('date_start', '=', fields.Date.to_string(date.today())),
+            ])
+            if not validate_existed_current_contracts:
+                if not check_new_employee_contracts:
+                    if check_new_employee_first_drafts:
+                        contract.write({'state': 'open'})
+                else:
+                    contract.write({'state': 'open'})
 
         return True
 
