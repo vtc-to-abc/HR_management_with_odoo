@@ -1,9 +1,5 @@
 from odoo import api, fields, models, tools, _
 from odoo.exceptions import UserError, ValidationError
-from datetime import date
-from calendar import monthrange
-import os
-from time import sleep
 from dateutil.relativedelta import relativedelta, MO
 from datetime import datetime, timedelta
 from calendar import monthrange
@@ -168,6 +164,7 @@ class ExtendEmployee(models.Model):
 
     """@api.depends('contract_ids')
     def auto_current_contract(self):
+        print('lol')
         if self.contract_ids:
             self.contract_ids.filtered(lambda x: x.employee_id == self ).sorted(key=lambda r: r.date_start, reverse = True)[0].state = 'open'
             #self.contract_id = cur_id

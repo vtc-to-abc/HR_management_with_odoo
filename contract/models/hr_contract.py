@@ -24,41 +24,95 @@ class ExtendContract(models.Model):
                                      default='1')
     wage_form = fields.Char(string="Hình thức lương")
     state = fields.Selection(string="Trạng thái")
+
     @api.onchange('name')
     def test(self):
+        # expired_contract_ids = self.search([
+        #     ('state', 'in', ['open']),
+        #     ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+        # ])
+        # for contract in expired_contract_ids:
+        #     next_contract = self.search([
+        #         ('employee_id', '=', contract.employee_id.id),
+        #         ('state', 'in', ['draft']),
+        #         ('date_start', '>', contract.date_start)
+        #     ], order="date_start desc", limit=1)
+        #     contract.write({'state': 'close'})
+        #     if next_contract:
+        #         next_contract.write({'state': 'open'})
+        #     else:
+        #         continue
+        # closest_new_contracts = self.search([('state', 'in', ['draft'])], order="date_start desc")
+        # print(closest_new_contracts)
+        # for contract in closest_new_contracts:
+        #     existed_current_contract = self.search([
+        #             ('employee_id', '=', contract.employee_id.id),
+        #             ('state', 'in', (['open'])),
+        #             ])
+        #     if not existed_current_contract:
+        #         contract.write({'state': 'open'})
+        print(self.id)
         print(self.state)
         print(self.name)
         print(self.employee_id.contract_id.name)
         print(self.contract_type)
+
     @api.model
     def update_state(self):
-        """tim tat ca cac hop dong het han"""
-        expired_contract_ids = self.search([
-                                ('state', '=', 'open'),
-                                '|',
-                                ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
-                                ])
+        # near_expire_contracts = self.search([
+        #         ('state', '=', 'open'), ('kanban_state', 'in', ['blocked', 'done', 'normal']),
+        #         '|',
+        #         '&',
+        #         ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+        #         ('date_end', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+        #         '&',
+        #         ('visa_expire', '<=', fields.Date.to_string(date.today() + relativedelta(days=60))),
+        #         ('visa_expire', '>=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+        #     ])
 
-        for contract in expired_contract_ids:
-            next_contract = self.search([
-                ('employee_id', '=', contract.employee_id.id),
-                ('state', '=', 'daft'),
-                ('date_start', '>', contract.date_start),
-                ('date_start', '<=', fields.Date.to_string(date.today()))
-            ], order="date_start desc", limit=1)
-            contract.write({'state': 'close'})
-            if next_contract:
-                next_contract.write({'state': 'open'})
+        # for contract in near_expire_contracts:
+        #     contract.activity_schedule(
+        #         'mail.mail_activity_data_todo', contract.date_end,
+        #         _("The contract of %s is about to expire.", contract.employee_id.name),
+        #         user_id=contract.hr_responsible_id.id or self.env.uid)
 
-        """tu dong them moi hop dong hien tai neu khong co hop dong hien tai"""
-        current_contracts = self.search([('state', '=', 'open')])
-        for contract in current_contracts:
-            if not contract:
-                self.search([
+        # near_expire_contracts.write({'kanban_state': 'blocked'})
+
+        self.search([
+            ('state', 'in', ['open']),
+            '|',
+            ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+            ('visa_expire', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
+        ]).write({'state': 'cancel'})
+
+        expire_contract_ids = self.search(
+                [('state', '=', 'cancel'), ('employee_id', '!=', False)], order="date_end desc")
+        # Ensure all closed contract followed by a new contract have a end date.
+        # If closed contract has no closed date, the work entries will be generated for an unlimited period.
+        for contract in expire_contract_ids:
+            existed_current_contract = self.search([
+                               ('employee_id', '=', contract.employee_id.id),
+                               ('state', 'in', (['open'])), ])
+            if not existed_current_contract:
+                next_contract = self.search([
                     ('employee_id', '=', contract.employee_id.id),
-                    ('state', '=', 'daft'),
-                    ('date_start', '<=', fields.Date.to_string(date.today()))
-                ], order="date_start desc", limit=1).write({'state': 'open'})
+                    ('state', 'in', ['draft']),
+                ], order="date_start desc", limit=1)
+                if next_contract:
+                    next_contract.write({'state': 'open'})
+            else:
+                continue
+
+        closest_new_contracts = self.search([('state', 'in', ['draft'])], order="date_start desc")
+        print(closest_new_contracts)
+        for contract in closest_new_contracts:
+             existed_current_contract = self.search([
+                     ('employee_id', '=', contract.employee_id.id),
+                     ('state', 'in', (['open'])),
+                     ])
+             if not existed_current_contract:
+                 contract.write({'state': 'open'})
+
         return True
 
     def _assign_open_contract(self):
@@ -80,6 +134,17 @@ class ExtendContract(models.Model):
         return res
 
     @api.model
+    def create(self, vals):
+        contracts = super(ExtendContract, self).create(vals)
+        if vals.get('state') == 'open':
+            contracts._assign_open_contract()
+        open_contracts = contracts.filtered(lambda c: c.state == 'open' or c.state == 'draft')
+        # sync contract calendar -> calendar employee
+        for contract in open_contracts.filtered(lambda c: c.employee_id and c.resource_calendar_id):
+            contract.employee_id.resource_calendar_id = contract.resource_calendar_id
+        return contracts
+
+    @api.model
     def name_get(self):
         c_l = []
         for contract in self:
@@ -94,7 +159,7 @@ class ExtendContract(models.Model):
         if relativedelta(self.date_end, datetime.now()).years == 0 and relativedelta(self.date_end, datetime.now()).month == 0 and relativedelta(self.date_end, datetime.now()).days <= 3:
             raise ValidationError('test')
 
-    @api.constrains("date_start", "contract_term")
+    @api.onchange("date_start", "contract_term")
     def _auto_end(self):
         f_c_t = 0
 

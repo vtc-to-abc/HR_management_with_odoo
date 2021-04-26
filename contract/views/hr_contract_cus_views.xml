@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <data>
-
         <record id="custom_employee_contract_view" model="ir.ui.view">
             <field name="name">custom.employee.contract.view</field>
             <field name="model">hr.contract</field>
@@ -13,7 +12,7 @@
                         <field name="name" readonly="1"/>
                         <field name="contract_term" readonly="1"/>
                         <field name="date_start" readonly="1"/>
-                        <field name="date_end" readonly="1"/>
+                        <field name="state" readonly="1"/>
                         <field name="wage_form" readonly="1"/>
                     </tree>
                 </xpath>
