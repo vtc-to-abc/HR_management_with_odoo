@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <record id="custom_view_attendance_tree" model="ir.ui.view">
+            <field name="name">custom.view.attendance.tree</field>
+            <field name="model">hr.attendance</field>
+            <field name="inherit_id" ref="hr_attendance.view_attendance_tree"/>
+            <field name="arch" type="xml">
+                <xpath expr="//tree/field[1]" positon="before">
+                    <field name="attendant_code" optional="hide"/>
+                </xpath>
+                <xpath expr="//tree/field[@name='employee_id']" position='attributes'>
+                    <attribute name="string">Nhan vien</attribute>
+                </xpath>
+                <xpath expr="//tree/field[@name='check_in']" position="attributes">
+                    <attribute name="string">Gio vao</attribute>
+                </xpath>
+                <xpath expr="//tree/field[@name='check_out']" position="attributes">
+                    <attribute name="string">Gio ra</attribute>
+                </xpath>
+                <xpath expr="//tree/field[@name='worked_hours']" position="attributes">
+                    <attribute name="string">Gio lam viec</attribute>
+                </xpath>
+                <xpath expr="//tree/field[@name='worked_hours']" position="after">
+                    <field name="working_time" optional="hide"/>
+                    <field name="leave_status_in_day"/>
+                    <field name="pay_type" optional="hide"/>
+                    <field name="off_explain_need"/>
+                    <field name="late_count" optional="hide"/>
+                    <field name="approve_status"/>
+                    <field name="off_explain_content" optional="hide"/>
+                    <field name="decline_reasson" optional="hide"/>
+                    <field name="work_day" optional="hide"/>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>

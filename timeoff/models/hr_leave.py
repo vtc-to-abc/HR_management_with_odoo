@@ -23,8 +23,8 @@ class ExtendContract(models.Model):
                 continue
             leave_days = mapped_days[holiday.employee_id.id][holiday.holiday_status_id.id]
             # neu nhan vien co hop dong thi moi duoc phep xin nghi loai co allocation
-            print(leave_days['remaining_leaves'])
-            if p_time_off :
+            print(holiday.request_unit_half)
+            if p_time_off:
                 """ xet so allocation con lai cua nhan vien. 
                         + Neu so allocation con lai >= 0 thi moi duoc phep xin nghi
                         + Neu so allocation con lai < 0 thi ko duoc phep xin nghi

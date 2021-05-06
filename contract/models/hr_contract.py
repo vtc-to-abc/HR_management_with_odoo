@@ -25,38 +25,6 @@ class ExtendContract(models.Model):
     wage_form = fields.Char(string="Hình thức lương")
     state = fields.Selection(string="Trạng thái")
 
-    @api.onchange('name')
-    def test(self):
-        # expired_contract_ids = self.search([
-        #     ('state', 'in', ['open']),
-        #     ('date_end', '<=', fields.Date.to_string(date.today() + relativedelta(days=1))),
-        # ])
-        # for contract in expired_contract_ids:
-        #     next_contract = self.search([
-        #         ('employee_id', '=', contract.employee_id.id),
-        #         ('state', 'in', ['draft']),
-        #         ('date_start', '>', contract.date_start)
-        #     ], order="date_start desc", limit=1)
-        #     contract.write({'state': 'close'})
-        #     if next_contract:
-        #         next_contract.write({'state': 'open'})
-        #     else:
-        #         continue
-        # closest_new_contracts = self.search([('state', 'in', ['draft'])], order="date_start desc")
-        # print(closest_new_contracts)
-        # for contract in closest_new_contracts:
-        #     existed_current_contract = self.search([
-        #             ('employee_id', '=', contract.employee_id.id),
-        #             ('state', 'in', (['open'])),
-        #             ])
-        #     if not existed_current_contract:
-        #         contract.write({'state': 'open'})
-        print(self.id)
-        print(self.state)
-        print(self.name)
-        print(self.employee_id.contract_id.name)
-        print(self.contract_type)
-
     @api.model
     def update_state(self):
         # khi hop dong hien tai gan het han, thi gui mail ve
@@ -101,6 +69,7 @@ class ExtendContract(models.Model):
                 next_contract = self.search([
                     ('employee_id', '=', contract.employee_id.id),
                     ('state', 'in', ['draft']),
+                    ('date_end', '>=', fields.Date.to_string(date.today() + relativedelta(days=15))),
                 ], order="date_start desc", limit=1)
                 if next_contract:
                     next_contract.write({'state': 'open'})
@@ -134,6 +103,31 @@ class ExtendContract(models.Model):
     def _assign_open_contract(self):
         for contract in self:
             contract.employee_id.sudo().write({'contract_id': contract.id})
+
+    def _count_date_end(self):
+        for contract in self:
+            f_c_t = 0
+            cur_year = int(contract.date_start.year)
+            cur_month = int(contract.date_start.month)
+            for x in range(1, int(contract.contract_term)+1):
+                if cur_month > 12:
+                    cur_year += 1
+                    cur_month = 1
+                f_c_t += int(monthrange(cur_year, cur_month)[1])
+                cur_month += 1
+            e_d = contract.date_start + timedelta(days=f_c_t)
+            print(e_d)
+            return e_d
+
+    @api.onchange("date_start", "contract_term")
+    # onchange is a virtual record, so no real change will be make
+    def change_date_end(self):
+        e_d = self._count_date_end()
+        self.date_end = e_d
+
+    @api.constrains("date_start", "contract_term")
+    def assign_date_end(self):
+        self.date_end = self._count_date_end()
 
     def write(self, vals):
         res = super(ExtendContract, self).write(vals)
@@ -175,18 +169,4 @@ class ExtendContract(models.Model):
         if relativedelta(self.date_end, datetime.now()).years == 0 and relativedelta(self.date_end, datetime.now()).month == 0 and relativedelta(self.date_end, datetime.now()).days <= 3:
             raise ValidationError('test')
 
-    @api.onchange("date_start", "contract_term")
-    def _auto_end(self):
-        f_c_t = 0
 
-        cur_year = int(self.date_start.year)
-        cur_month = int(self.date_start.month)
-        for x in range(1, int(self.contract_term)+1):
-            if cur_month > 12:
-                cur_year += 1
-                cur_month = 1
-            f_c_t += int(monthrange(cur_year, cur_month)[1])
-            cur_month += 1
-
-        e_d = self.date_start + timedelta(days=f_c_t)
-        self.date_end = e_d
