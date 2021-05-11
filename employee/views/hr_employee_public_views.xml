@@ -163,7 +163,8 @@
                 </xpath>
             </field>
         </record>
-        <record id="view_custom+employee_filter" model="ir.ui.view">
+
+        <record id="view_custom_employee_filter" model="ir.ui.view">
             <field name="name">view.custom.employee.filter</field>
             <field name="model">hr.employee</field>
             <field name="inherit_id" ref="hr.view_employee_filter"/>

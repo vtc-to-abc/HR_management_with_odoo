@@ -11,9 +11,9 @@ class CustomAttendance(models.Model):
 
     attendant_code = fields.Char(string='Mã chấm công')
     working_time = fields.Selection(selection=[
-                                    ('weekend','Cuoi tuan'),
-                                    ('holiday','Nghi le'),
-                                    ('workday','Ngay lam viec')],
+                                    ('weekend', 'Cuoi tuan'),
+                                    ('holiday', 'Nghi le'),
+                                    ('workday', 'Ngay lam viec')],
                                     string='Thời gian làm việc',
                                     store=True,
                                     compute='_auto_working_time')
@@ -32,30 +32,53 @@ class CustomAttendance(models.Model):
                                 ('unpaid', 'Nghi khong luong')],
                                 string="loai chi tra",)
 
-    # xay ra sau khi da xin nghi va da hoan thanh check out.
+    # note: xay ra sau khi da xin nghi va da hoan thanh check out.
     off_explain_need = fields.Char(string="Can giai trinh", store=True, compute='_work_day_and_off_explain')
 
+    # note: moi nhan vien can phai co giai trinh ve ngay cong cua minh
+    # va de ngay cong cua nhan vien co gia tri, thi giai trinh do phai duoc manager phe duyet
     work_day = fields.Float(string='Ngay cong', default=0.0, store=True, compute='_work_day_and_off_explain')
-    late_count = fields.Integer(string='So lan di muon')
+
+    workday_confirm = fields.Selection(selection=[
+                                        ('NN', 'Nua Ngay'),
+                                        ('CN', 'Ca Ngay'), ],
+                                        string='Giai trinh cham cong')
+
+    number_late = fields.Integer(string='Trang thai di muon', store=True, compute='_check_late')
+    late_confirm = fields.Selection(selection=[
+                                    ('muon', 'Di Muon'),
+                                    ('ko muon', 'Khong Di Muon'),
+                                    ('phep', 'Muon Co Phep')],
+                                    string='Giai trinh di muon')
     off_explain_content = fields.Text(string='Noi dung giai trinh')
-    approve_status = fields.Selection(selection=[
-                                        ('request', 'Xin phe duyet'),
-                                        ('explain', 'Can giai trinh'),
-                                        ('approved', 'Da phe duyet'),
-                                        ('Decline', 'Tu choi'),
-                                        ('draft', 'Nhap')],
-                                        string='Trang thai phe duyet',)
+    state = fields.Selection(selection=[
+                            ('wait', 'Cho phe duyet'),
+                            ('explain', 'Can giai trinh'),
+                            ('approved', 'Da phe duyet'),
+                            ('refuse', 'Tu choi'),
+                            ('draft', 'Nhap')],
+                            store=True,
+                            compute="_auto_state",
+                            string='Trang thai giai trinh',)
 
-    decline_reasson = fields.Text(string='Ly do tu choi')
-
+    refuse_reasson = fields.Text(string='Ly do tu choi')
     check_in = fields.Datetime(string='Gio vao')
     check_out = fields.Datetime(string='Gia ra')
     worked_hours = fields.Float(string='Gio lam viec')
 
+    def action_approve(self):
+        return {
+            'name': 'Phe Duyet',
+            'context': "{'edit': True}",
+            'res_model': 'hr.attendance',
+            'type': 'ir.actions.act_window',
+            'view_mode': 'form',
+            'res_id': int(self.id),
+            'target': 'new'}
+
     @api.depends('check_in')
     def _auto_working_time(self):
         time_format = "%Y-%m-%d"
-
         for record in self:
             local_check_in = datetime.datetime.strptime(
                 record.check_in.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
@@ -76,34 +99,28 @@ class CustomAttendance(models.Model):
             emp_time_off = self.env['hr.leave'].search([('date_from', '<=', local_check_in),
                                                         ('date_to', '>=', local_check_in),
                                                         ('employee_id.id', '=', record.employee_id.id), ])
+            emp_half_time_off = self.env['hr.leave'].search([('request_date_from', '=', local_check_in),
+                                                        ('employee_id.id', '=', record.employee_id.id), ])
 
-            """ leave_status = 'K' khi nhan vien do khong co khoang tg nghi trong time off 
-            trung vs ngay check_in"""
-            if not emp_time_off:
-                    print('no time off')
-                    record.leave_status_in_day = 'K'
+            if not emp_time_off and not emp_half_time_off:
+                print('no time off')
+                record.leave_status_in_day = 'K'
 
-            """ leave_status = 'K' khi nhan vien do co khoang tg nghi trong time off trung vs ngay check_in
-            nhung yeu cau time off do van chua duoc duyet (trang thai cua yeu cau time off la draft hoac confirm)"""
             if emp_time_off.state in ['draft', 'confirm']:
                 print('in draft')
                 record.leave_status_in_day = 'K'
 
-            """leave_status = 'CN' neu nhan vien do co tg nghi time off da duoc duyet, 
-                vs truong [request_unit_half] =False, trung voi ngay check in
-            """
-            if emp_time_off.state == 'validate1' and not emp_time_off.request_unit_half:
+            if emp_half_time_off.state in ['draft', 'confirm']:
+                record.leave_status_in_day = 'K'
+
+            if emp_time_off.state in ['validate', 'validate1'] and not emp_time_off.request_unit_half:
                 record.leave_status_in_day = 'CN'
 
-            """Xet truong hop nghi nua ngay, neu nhan vien co tg nghi time off, da duoc duyet, [request_unit_half] = true
-            trung voi ngay check in"""
-            if emp_time_off.state in ['validate', 'validate1'] and emp_time_off.request_unit_half:
-                """leave_status = NC, neu [request_date_from period] = pm.
-                Nguoc lai leave_status = NS, neu [request_date_from_period] = am
-                """
-                if emp_time_off.request_date_from_period == 'pm':
+            if emp_half_time_off.state in ['validate', 'validate1'] and emp_half_time_off.request_unit_half:
+
+                if emp_half_time_off.request_date_from_period == 'pm':
                     record.leave_status_in_day = 'NC'
-                elif emp_time_off.request_date_from_period == 'am':
+                elif emp_half_time_off.request_date_from_period == 'am':
                     record.leave_status_in_day = 'NS'
 
     @api.depends('check_in', 'check_out', 'working_time')
@@ -144,12 +161,12 @@ class CustomAttendance(models.Model):
                 else:
                     # tính ngày công:
 
-                    # nếu sáng đến muộn, chiều về sớm => ko tính công
+                    # nếu sáng đến muộn quá hạn, chiều về sớm => ko tính công
                     if local_check_out < noon_end and local_check_in > morning_begin_end:
                         print('wd 0')
                         record.work_day = 0.0
 
-                    # neu chiều đến muộn, chiều về muộn => ko tính công???
+                    # neu chiều đến muộn quá hạn, chiều về muộn => ko tính công???
                     if local_check_in > noon_begin_end and local_check_out > noon_end:
                         print('wd 1')
                         record.work_day = 0.
@@ -158,17 +175,17 @@ class CustomAttendance(models.Model):
                     if record.working_time != 'workday':
                         record.work_day = 0.0
 
-                    # nếu sáng đến sớm, chiều về sớm => tính nửa ngày công
+                    # nếu sáng đến trước hạn, chiều về sớm => tính nửa ngày công
                     if local_check_out < noon_end and local_check_in < morning_begin_end:
                         print('wd 2')
                         record.work_day = 0.5
 
-                    # nếu sáng đến muộn(hoặc nghỉ sáng) nhưng chiều đến sớm. và chiều về muộn => tính nửa ngày công
+                    # nếu sáng đến muộn quá hạn (hoặc nghỉ sáng) nhưng chiều đến sớm. và chiều về muộn => tính nửa ngày công
                     if local_check_out > noon_end and morning_begin_end <= local_check_in < noon_begin_end:
                         print('wd 3')
                         record.work_day = 0.5
 
-                    # nếu sáng đến sớm và chiều về đúng quy định => tính cả ngày công
+                    # nếu sáng đến trước hạn và chiều về đúng quy định => tính cả ngày công
                     if local_check_in < morning_begin_end and local_check_out >= noon_end:
                         print('wd 4')
                         record.work_day = 1.0
@@ -263,3 +280,23 @@ class CustomAttendance(models.Model):
                     if noon_begin_end < local_check_in <= day_end and local_check_out < noon_end \
                         and record.leave_status_in_day in ['K', 'NS']:
                         record.off_explain_need = 'M1431, Ve Som'
+
+    @api.depends('off_explain_need')
+    def _check_late(self):
+        for record in self:
+            if record.off_explain_need in ['M836', 'M1306', 'M836, Ve Som', 'M1306, Ve Som']:
+                record.number_late = 1
+            elif record.off_explain_need in ['M931', 'M1431', 'M931, Ve Som', 'M1431, Ve Som']:
+                record.number_late = 0
+
+    @api.depends('off_explain_need')
+    def _auto_state(self):
+        for record in self:
+            if record.off_explain_need == 'Khong':
+                record.state = False
+            if record.off_explain_need != 'Khong':
+                record.state = 'explain'
+                if record.off_explain_content and record.state not in ['approved', 'refuse']:
+                    record.state = 'wait'
+
+
