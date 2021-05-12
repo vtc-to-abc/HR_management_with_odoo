@@ -49,7 +49,7 @@ class CustomAttendance(models.Model):
     number_late = fields.Integer(string='Trang thai di muon', store=True, compute='_check_late')
     late_confirm = fields.Selection(selection=[
                                     ('muon', 'Di Muon'),
-                                    ('ko muon', 'Khong Di Muon'),
+                                    ('ko', 'Khong Di Muon'),
                                     ('phep', 'Muon Co Phep')],
                                     default='',
                                     string='Giai trinh di muon')
@@ -69,26 +69,36 @@ class CustomAttendance(models.Model):
     check_out = fields.Datetime(string='Gia ra')
     worked_hours = fields.Float(string='Gio lam viec')
 
+    @api.depends('late_confirm')
+    def _check_late(self):
+        for record in self:
+            if record.late_confirm in ['ko', 'phep']:
+                record.number_late = 0
+            elif record.late_confirm == 'muon':
+                record.number_late = 1
+
     @api.constrains('workday_confirm')
     def wd_confirm(self):
         if self.leave_status_in_day in ['NS', 'NC'] and self.workday_confirm == 'CN':
             raise ValidationError("Nhan vien da nghi sang hoac chieu")
 
     def action_approve(self):
-        view_ref = self.env['ir.model.data'].get_object_reference('hr.attendance', 'view_approval_popup_from')
+        #view_ref = self.env['ir.ui.view'].get_object_reference('hr.attendance', 'view_approval_popup_from')
         return {
             'name': 'Phe Duyet',
             'context': "{'edit': True}",
             'res_model': 'hr.attendance',
             'type': 'ir.actions.act_window',
+            'view_type': 'form',
             'view_mode': 'form',
             'priority': 25,
-            'views_id': view_ref and view_ref[1] or False,
+            #'views': ['view_approval_popup_from', 'form')],
+            'views_id': 'view_approval_popup_from',
             'res_id': int(self.id),
             'target': 'new'}
 
     def action_off_explain(self):
-        view_ref = self.env['ir.model.data'].get_object_reference('hr_attendance', 'view_explain_popup_from')
+        #view_ref = self.env['ir.model.data'].get_object_reference('hr_attendance', 'view_explain_popup_from')
         return {
             'name': 'Giai Trinh',
             'context': "{'edit': True}",
@@ -96,7 +106,7 @@ class CustomAttendance(models.Model):
             'type': 'ir.actions.act_window',
             'view_mode': 'form',
             'priority': 15,
-            'views_id': view_ref and view_ref[1] or False,
+            'views_id': 'view_explain_popup_from',
             'res_id': int(self.id),
             'target': 'new'}
 
@@ -147,7 +157,7 @@ class CustomAttendance(models.Model):
                 elif emp_half_time_off.request_date_from_period == 'am':
                     record.leave_status_in_day = 'NS'
 
-    @api.depends('check_in', 'check_out', 'working_time')
+    @api.depends('check_in', 'check_out', 'working_time', 'workday_confirm')
     def _work_day_and_off_explain(self):
         daycheck = datetime.datetime.now()
         for record in self:
@@ -179,6 +189,10 @@ class CustomAttendance(models.Model):
                 local_check_out = datetime.datetime.strptime(record.check_out.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
                                                          .strftime(time_format), time_format)
 
+                if record.workday_confirm == 'NN':
+                    record.work_day = 0.5
+                elif record.workday_confirm == 'CN':
+                    record.work_day = 1.0
                 # nếu tình trạng nghỉ của nhân là cả ngày, thì không cần giải trình lý do
                 if record.leave_status_in_day == 'CN':
                     record.off_explain_need = 'Khong'
@@ -186,31 +200,37 @@ class CustomAttendance(models.Model):
                     # tính ngày công:
 
                     # nếu sáng đến muộn quá hạn, chiều về sớm => ko tính công
-                    if local_check_out < noon_end and local_check_in > morning_begin_end:
+                    if local_check_out < noon_end and local_check_in > morning_begin_end\
+                            and not record.workday_confirm:
                         print('wd 0')
                         record.work_day = 0.0
 
                     # neu chiều đến muộn quá hạn, chiều về muộn => ko tính công???
-                    if local_check_in > noon_begin_end and local_check_out > noon_end:
+                    if local_check_in > noon_begin_end and local_check_out > noon_end\
+                            and not record.workday_confirm:
                         print('wd 1')
                         record.work_day = 0.
 
                     # tạm thời chưa tính ngày công vào cuối tuần hoặc nghỉ lễ
-                    if record.working_time != 'workday':
+                    if record.working_time != 'workday'\
+                            and not record.workday_confirm:
                         record.work_day = 0.0
 
                     # nếu sáng đến trước hạn, chiều về sớm => tính nửa ngày công
-                    if local_check_out < noon_end and local_check_in < morning_begin_end:
+                    if local_check_out < noon_end and local_check_in < morning_begin_end\
+                            and not record.workday_confirm:
                         print('wd 2')
                         record.work_day = 0.5
 
                     # nếu sáng đến muộn quá hạn (hoặc nghỉ sáng) nhưng chiều đến sớm. và chiều về muộn => tính nửa ngày công
-                    if local_check_out > noon_end and morning_begin_end <= local_check_in < noon_begin_end:
+                    if local_check_out > noon_end and morning_begin_end <= local_check_in < noon_begin_end\
+                            and not record.workday_confirm:
                         print('wd 3')
                         record.work_day = 0.5
 
                     # nếu sáng đến trước hạn và chiều về đúng quy định => tính cả ngày công
-                    if local_check_in < morning_begin_end and local_check_out >= noon_end:
+                    if local_check_in < morning_begin_end and local_check_out >= noon_end\
+                            and not record.workday_confirm:
                         print('wd 4')
                         record.work_day = 1.0
 
