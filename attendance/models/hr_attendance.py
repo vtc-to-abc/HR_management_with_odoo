@@ -2,6 +2,7 @@ import datetime
 
 from odoo import models, fields, api, exceptions, _
 from odoo.tools import format_datetime
+from odoo.exceptions import UserError, ValidationError
 import pytz
 
 class CustomAttendance(models.Model):
@@ -42,6 +43,7 @@ class CustomAttendance(models.Model):
     workday_confirm = fields.Selection(selection=[
                                         ('NN', 'Nua Ngay'),
                                         ('CN', 'Ca Ngay'), ],
+                                        default='',
                                         string='Giai trinh cham cong')
 
     number_late = fields.Integer(string='Trang thai di muon', store=True, compute='_check_late')
@@ -49,6 +51,7 @@ class CustomAttendance(models.Model):
                                     ('muon', 'Di Muon'),
                                     ('ko muon', 'Khong Di Muon'),
                                     ('phep', 'Muon Co Phep')],
+                                    default='',
                                     string='Giai trinh di muon')
     off_explain_content = fields.Text(string='Noi dung giai trinh')
     state = fields.Selection(selection=[
@@ -66,13 +69,34 @@ class CustomAttendance(models.Model):
     check_out = fields.Datetime(string='Gia ra')
     worked_hours = fields.Float(string='Gio lam viec')
 
+    @api.constrains('workday_confirm')
+    def wd_confirm(self):
+        if self.leave_status_in_day in ['NS', 'NC'] and self.workday_confirm == 'CN':
+            raise ValidationError("Nhan vien da nghi sang hoac chieu")
+
     def action_approve(self):
+        view_ref = self.env['ir.model.data'].get_object_reference('hr.attendance', 'view_approval_popup_from')
         return {
             'name': 'Phe Duyet',
             'context': "{'edit': True}",
             'res_model': 'hr.attendance',
             'type': 'ir.actions.act_window',
             'view_mode': 'form',
+            'priority': 25,
+            'views_id': view_ref and view_ref[1] or False,
+            'res_id': int(self.id),
+            'target': 'new'}
+
+    def action_off_explain(self):
+        view_ref = self.env['ir.model.data'].get_object_reference('hr_attendance', 'view_explain_popup_from')
+        return {
+            'name': 'Giai Trinh',
+            'context': "{'edit': True}",
+            'res_model': 'hr.attendance',
+            'type': 'ir.actions.act_window',
+            'view_mode': 'form',
+            'priority': 15,
+            'views_id': view_ref and view_ref[1] or False,
             'res_id': int(self.id),
             'target': 'new'}
 
