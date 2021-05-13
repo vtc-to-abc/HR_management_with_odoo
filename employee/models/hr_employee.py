@@ -162,18 +162,6 @@ class ExtendEmployee(models.Model):
              'If empty, the approval is done by an Administrator or Approver (determined in settings/users).')
     other_certificate = fields.Char(string="Other Certificate", required=False)
 
-    """@api.depends('contract_ids')
-    def auto_current_contract(self):
-        print('lol')
-        if self.contract_ids:
-            self.contract_ids.filtered(lambda x: x.employee_id == self ).sorted(key=lambda r: r.date_start, reverse = True)[0].state = 'open'
-            #self.contract_id = cur_id
-
-        if self.contract_id.date_end:
-            if self.contract_id.date_end < date.today():
-                self.contract_id = None
-    """
-
     @api.depends('join_date')
     def _work_time_increase(self):
         w_y = str(relativedelta(datetime.now(), self.join_date).years)

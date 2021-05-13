@@ -5,6 +5,7 @@ from odoo.tools import format_datetime
 from odoo.exceptions import UserError, ValidationError
 import pytz
 
+
 class CustomAttendance(models.Model):
     _inherit = "hr.attendance"
     _description = "Extend Attendance"
@@ -53,7 +54,7 @@ class CustomAttendance(models.Model):
                                     ('phep', 'Muon Co Phep')],
                                     default='',
                                     string='Giai trinh di muon')
-    off_explain_content = fields.Text(string='Noi dung giai trinh')
+
     state = fields.Selection(selection=[
                             ('wait', 'Cho phe duyet'),
                             ('explain', 'Can giai trinh'),
@@ -64,6 +65,8 @@ class CustomAttendance(models.Model):
                             compute="_auto_state",
                             string='Trang thai giai trinh',)
 
+    off_explain = fields.One2many('attendance.explain', 'attendance_id')
+    off_explain_content = fields.Text(string='Noi dung giai trinh')
     refuse_reasson = fields.Text(string='Ly do tu choi')
     check_in = fields.Datetime(string='Gio vao')
     check_out = fields.Datetime(string='Gia ra')
@@ -82,6 +85,24 @@ class CustomAttendance(models.Model):
         if self.leave_status_in_day in ['NS', 'NC'] and self.workday_confirm == 'CN':
             raise ValidationError("Nhan vien da nghi sang hoac chieu")
 
+    def action_off_explain(self):
+        if not self.off_explain:
+            explain = self.env['attendance.explain'].create({'attendance_id': self.id, 'off_explain_content': ' '})
+            self.env.cr.commit()
+
+        self.off_explain_content = self.off_explain.off_explain_content
+
+        return {
+            'name': 'Giai Trinh',
+            'context': "{'edit': True}",
+            'res_model': 'attendance.explain',
+            'type': 'ir.actions.act_window',
+            'view_mode': 'form',
+            'res_id':  int(self.off_explain.id),
+            'views_id': 'custom_view_attendance_explain',
+            #'attendance_id': int(self.id),
+            'target': 'new'}
+
     def action_approve(self):
         #view_ref = self.env['ir.ui.view'].get_object_reference('hr.attendance', 'view_approval_popup_from')
         return {
@@ -89,25 +110,9 @@ class CustomAttendance(models.Model):
             'context': "{'edit': True}",
             'res_model': 'hr.attendance',
             'type': 'ir.actions.act_window',
-            'view_type': 'form',
             'view_mode': 'form',
-            'priority': 25,
-            #'views': ['view_approval_popup_from', 'form')],
+            'res_id': int(self.id),
             'views_id': 'view_approval_popup_from',
-            'res_id': int(self.id),
-            'target': 'new'}
-
-    def action_off_explain(self):
-        #view_ref = self.env['ir.model.data'].get_object_reference('hr_attendance', 'view_explain_popup_from')
-        return {
-            'name': 'Giai Trinh',
-            'context': "{'edit': True}",
-            'res_model': 'hr.attendance',
-            'type': 'ir.actions.act_window',
-            'view_mode': 'form',
-            'priority': 15,
-            'views_id': 'view_explain_popup_from',
-            'res_id': int(self.id),
             'target': 'new'}
 
     @api.depends('check_in')
@@ -125,6 +130,7 @@ class CustomAttendance(models.Model):
 
     @api.depends('employee_id', 'check_in')
     def _check_leave_status(self):
+        print(self.off_explain)
         time_format = "%Y-%m-%d %H:%M:%S"
         for record in self:
             local_check_in = datetime.datetime.strptime(record.check_in.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
@@ -333,14 +339,14 @@ class CustomAttendance(models.Model):
             elif record.off_explain_need in ['M931', 'M1431', 'M931, Ve Som', 'M1431, Ve Som']:
                 record.number_late = 0
 
-    @api.depends('off_explain_need')
+    @api.depends('off_explain_need', 'off_explain')
     def _auto_state(self):
         for record in self:
             if record.off_explain_need == 'Khong':
                 record.state = False
             if record.off_explain_need != 'Khong':
                 record.state = 'explain'
-                if record.off_explain_content and record.state not in ['approved', 'refuse']:
+                if record.off_explain_content and record.state != 'approved' and record.state != 'refuse':
                     record.state = 'wait'
 
 

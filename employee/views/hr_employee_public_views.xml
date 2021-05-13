@@ -17,6 +17,7 @@
                     <group>
                         <group>
                             <field name="code"/>
+
                             <field name="job_title1"/>
                             <field name="department_id"/>
                             <field name="parent_id"/>
