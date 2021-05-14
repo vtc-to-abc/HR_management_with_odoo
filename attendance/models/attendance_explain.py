@@ -11,9 +11,9 @@ class AttendanceExplain(models.Model):
     attendance_id = fields.Many2one('hr.attendance', string='Cham cong')
     off_explain_content = fields.Text(string='Noi dung giai trinh', required=True)
 
-    @api.model
-    def create(self, vals):
-        result = super(AttendanceExplain, self).create(vals)
-        # do what you want
-        return result
+    def action_off_explain_content(self):
+        for record in self:
+            record.attendance_id.action_off_explain(record.off_explain_content)
+            record.attendance_id.off_explain_content = record.off_explain_content
+
 

@@ -40,20 +40,21 @@ class CustomAttendance(models.Model):
     # note: moi nhan vien can phai co giai trinh ve ngay cong cua minh
     # va de ngay cong cua nhan vien co gia tri, thi giai trinh do phai duoc manager phe duyet
     work_day = fields.Float(string='Ngay cong', default=0.0, store=True, compute='_work_day_and_off_explain')
-
     workday_confirm = fields.Selection(selection=[
                                         ('NN', 'Nua Ngay'),
                                         ('CN', 'Ca Ngay'), ],
-                                        default='',
-                                        string='Giai trinh cham cong')
+                                        default='CN',
+                                        string='Giai trinh cham cong',
+                                        required=True)
 
-    number_late = fields.Integer(string='Trang thai di muon', store=True, compute='_check_late')
+    number_late = fields.Integer(string='Trang thai di muon', default=0, store=True, compute='_check_late')
     late_confirm = fields.Selection(selection=[
                                     ('muon', 'Di Muon'),
                                     ('ko', 'Khong Di Muon'),
                                     ('phep', 'Muon Co Phep')],
-                                    default='',
-                                    string='Giai trinh di muon')
+                                    default='phep',
+                                    string='Giai trinh di muon',
+                                    required=True)
 
     state = fields.Selection(selection=[
                             ('wait', 'Cho phe duyet'),
@@ -65,55 +66,66 @@ class CustomAttendance(models.Model):
                             compute="_auto_state",
                             string='Trang thai giai trinh',)
 
-    off_explain = fields.One2many('attendance.explain', 'attendance_id')
+    off_explain = fields.Many2one('attendance.explain')
     off_explain_content = fields.Text(string='Noi dung giai trinh')
+
+    att_refuse = fields.Many2one('attendance.refuse')
     refuse_reasson = fields.Text(string='Ly do tu choi')
+
     check_in = fields.Datetime(string='Gio vao')
     check_out = fields.Datetime(string='Gia ra')
     worked_hours = fields.Float(string='Gio lam viec')
 
-    @api.depends('late_confirm')
-    def _check_late(self):
+    def action_approval_refuse(self, vals=''):
         for record in self:
-            if record.late_confirm in ['ko', 'phep']:
-                record.number_late = 0
-            elif record.late_confirm == 'muon':
-                record.number_late = 1
+            record.att_refuse = record.env['attendance.refuse'].search([('attendance_id', '=', record.id)], limit=1)
+            print(record.att_refuse)
+            return {
+                'name': 'Tu Choi Giai Trinh',
+                'context': {'edit': True, 'default_attendance_id': record.id},
+                'res_model': 'attendance.refuse',
+                'type': 'ir.actions.act_window',
+                'view_mode': 'form',
+                'res_id':  int(record.att_refuse.id),
+                'views_id': 'attendance_approval_refuse_popup',
+                'target': 'new'}
+
+    def action_off_explain(self, vals=''):
+
+        for record in self:
+            record.off_explain = record.env['attendance.explain'].search([('attendance_id', '=', record.id)], limit=1)
+
+            return {
+                'name': 'Giai Trinh',
+                'context': {'edit': True, 'default_attendance_id': record.id},
+                'res_model': 'attendance.explain',
+                'type': 'ir.actions.act_window',
+                'view_mode': 'form',
+                'res_id':  int(record.off_explain.id),
+                'views_id': 'custom_view_attendance_explain',
+                'target': 'new'}
+
+    def action_approval_validate(self):
+        for record in self:
+            record.action_approve()
+            record.state = 'approved'
+
+    def action_approve(self):
+        for record in self:
+            return {
+                'name': 'Phe Duyet',
+                'context': "{'edit': True}",
+                'res_model': 'hr.attendance',
+                'type': 'ir.actions.act_window',
+                'view_mode': 'form',
+                'res_id': int(record.id),
+                'views_id': 'view_approval_popup_from',
+                'target': 'new'}
 
     @api.constrains('workday_confirm')
     def wd_confirm(self):
         if self.leave_status_in_day in ['NS', 'NC'] and self.workday_confirm == 'CN':
             raise ValidationError("Nhan vien da nghi sang hoac chieu")
-
-    def action_off_explain(self):
-        if not self.off_explain:
-            explain = self.env['attendance.explain'].create({'attendance_id': self.id, 'off_explain_content': ' '})
-            self.env.cr.commit()
-
-        self.off_explain_content = self.off_explain.off_explain_content
-
-        return {
-            'name': 'Giai Trinh',
-            'context': "{'edit': True}",
-            'res_model': 'attendance.explain',
-            'type': 'ir.actions.act_window',
-            'view_mode': 'form',
-            'res_id':  int(self.off_explain.id),
-            'views_id': 'custom_view_attendance_explain',
-            #'attendance_id': int(self.id),
-            'target': 'new'}
-
-    def action_approve(self):
-        #view_ref = self.env['ir.ui.view'].get_object_reference('hr.attendance', 'view_approval_popup_from')
-        return {
-            'name': 'Phe Duyet',
-            'context': "{'edit': True}",
-            'res_model': 'hr.attendance',
-            'type': 'ir.actions.act_window',
-            'view_mode': 'form',
-            'res_id': int(self.id),
-            'views_id': 'view_approval_popup_from',
-            'target': 'new'}
 
     @api.depends('check_in')
     def _auto_working_time(self):
@@ -130,7 +142,6 @@ class CustomAttendance(models.Model):
 
     @api.depends('employee_id', 'check_in')
     def _check_leave_status(self):
-        print(self.off_explain)
         time_format = "%Y-%m-%d %H:%M:%S"
         for record in self:
             local_check_in = datetime.datetime.strptime(record.check_in.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
@@ -195,6 +206,8 @@ class CustomAttendance(models.Model):
                 local_check_out = datetime.datetime.strptime(record.check_out.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
                                                          .strftime(time_format), time_format)
 
+                print(record.state)
+                print(record.leave_status_in_day)
                 if record.workday_confirm == 'NN':
                     record.work_day = 0.5
                 elif record.workday_confirm == 'CN':
@@ -295,7 +308,7 @@ class CustomAttendance(models.Model):
                     """nếu sáng đến muộn hoặc nghỉ sáng và chiều đến trước hạn. 
                     Đồng thời không xin nghỉ hoặc có xin nghỉ buổi chiều => M931"""
                     if morning_begin_end < local_check_in < noon_begin_end \
-                        and record.leave_status_in_day  in ['K', 'NC']:
+                        and record.leave_status_in_day in ['K', 'NC']:
                         record.off_explain_need = 'M931'
 
                     """ nếu sáng đến muộn hoặc nghỉ sáng và chiều đến trước hạn.
@@ -331,13 +344,19 @@ class CustomAttendance(models.Model):
                         and record.leave_status_in_day in ['K', 'NS']:
                         record.off_explain_need = 'M1431, Ve Som'
 
-    @api.depends('off_explain_need')
+    @api.depends('off_explain_need', 'late_confirm')
     def _check_late(self):
         for record in self:
-            if record.off_explain_need in ['M836', 'M1306', 'M836, Ve Som', 'M1306, Ve Som']:
-                record.number_late = 1
-            elif record.off_explain_need in ['M931', 'M1431', 'M931, Ve Som', 'M1431, Ve Som']:
-                record.number_late = 0
+            if not record.late_confirm:
+                if record.off_explain_need in ['M836', 'M1306', 'M836, Ve Som', 'M1306, Ve Som']:
+                    record.number_late = 1
+                elif record.off_explain_need in ['M931', 'M1431', 'M931, Ve Som', 'M1431, Ve Som']:
+                    record.number_late = 0
+            else:
+                if record.late_confirm in ['ko', 'phep']:
+                    record.number_late = 0
+                elif record.late_confirm == 'muon':
+                    record.number_late = 1
 
     @api.depends('off_explain_need', 'off_explain')
     def _auto_state(self):
@@ -346,7 +365,7 @@ class CustomAttendance(models.Model):
                 record.state = False
             if record.off_explain_need != 'Khong':
                 record.state = 'explain'
-                if record.off_explain_content and record.state != 'approved' and record.state != 'refuse':
+                if record.off_explain and record.state not in ['approved', 'refuse']:
                     record.state = 'wait'
 
 
