@@ -1,5 +1,4 @@
 import datetime
-
 from odoo import models, fields, api, exceptions, _
 from odoo.tools import format_datetime
 from odoo.exceptions import UserError, ValidationError
@@ -140,6 +139,10 @@ class CustomAttendance(models.Model):
             else:
                 record.working_time = 'workday'
 
+            for rec_holiday in record.employee_id.resource_calendar_id.global_leave_ids:
+                if rec_holiday.date_from <= local_check_in <= rec_holiday.date_to:
+                    record.working_time = 'holiday'
+
     @api.depends('employee_id', 'check_in')
     def _check_leave_status(self):
         time_format = "%Y-%m-%d %H:%M:%S"
@@ -174,7 +177,7 @@ class CustomAttendance(models.Model):
                 elif emp_half_time_off.request_date_from_period == 'am':
                     record.leave_status_in_day = 'NS'
 
-    @api.depends('check_in', 'check_out', 'working_time', 'workday_confirm')
+    @api.depends('check_in', 'check_out', 'working_time', 'workday_confirm', 'late_confirm')
     def _work_day_and_off_explain(self):
         daycheck = datetime.datetime.now()
         for record in self:
@@ -206,8 +209,6 @@ class CustomAttendance(models.Model):
                 local_check_out = datetime.datetime.strptime(record.check_out.astimezone(pytz.timezone('Asia/Ho_Chi_Minh'))
                                                          .strftime(time_format), time_format)
 
-                print(record.state)
-                print(record.leave_status_in_day)
                 if record.workday_confirm == 'NN':
                     record.work_day = 0.5
                 elif record.workday_confirm == 'CN':
